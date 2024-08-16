@@ -84,7 +84,18 @@ namespace Infrastructures.Services
 
             query = query.Skip(skip).Take(pageSize);
 
-            return await query.ToListAsync();
+            return await query.ToListAsync(token);
+        }
+
+        public async Task<T> GetOne(ISpecificationBase<T> specification, CancellationToken token = default)
+        {
+            if(specification == null) throw new ArgumentNullException(nameof(specification));
+
+            var expression = specification.ToExpression();
+            IQueryable<T> query = _context.Set<T>();
+            query = query.Where(expression);
+
+            return await query.FirstOrDefaultAsync(token);
         }
 
         public async Task<T> GetOne(int id, CancellationToken token = default)

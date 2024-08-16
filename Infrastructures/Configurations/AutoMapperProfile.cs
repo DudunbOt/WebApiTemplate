@@ -1,4 +1,6 @@
-﻿using AutoMapper;
+﻿using ApplicationCore.DTO;
+using ApplicationCore.Entities;
+using AutoMapper;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,6 +14,7 @@ namespace Infrastructures.Configurations
         public AutoMapperProfile()
         {
             //Create Mapper for Object <-> DTO here
+            CreateMap<UserInfo, UserInfoDTO>().ReverseMap();
         }
     }
 }
