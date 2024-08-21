@@ -14,7 +14,10 @@ namespace Infrastructures.Configurations
         public AutoMapperProfile()
         {
             //Create Mapper for Object <-> DTO here
-            CreateMap<UserInfo, UserInfoDTO>().ReverseMap();
+            CreateMap<UserInfo, UserInfoDTO>()
+                .ForMember(dest => dest.Password, opt => opt.Ignore());
+            CreateMap<UserInfoDTO, UserInfo>()
+                .ForMember(dest => dest.Password, opt => opt.Condition(src => !string.IsNullOrEmpty(src.Password)));
         }
     }
 }
