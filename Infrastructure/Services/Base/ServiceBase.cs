@@ -2,7 +2,7 @@
 using ApplicationCore.Interfaces;
 using ApplicationCore.Specifications;
 using AutoMapper;
-using Infrastructures.Configurations;
+using Infrastructure.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.Extensions.Caching.Distributed;
@@ -15,7 +15,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace Infrastructures.Services
+namespace Infrastructure.Services
 {
     public class ServiceBase<T> : IServiceBase<T> where T : EntityBase
     {
@@ -115,8 +115,6 @@ namespace Infrastructures.Services
             query = query.Where(expression)
                 .OrderByDescending(item => item.UpdatedDate)
                 .Skip(skip).Take(pageSize);
-
-
 
             var entities = await query.ToListAsync(token);
 

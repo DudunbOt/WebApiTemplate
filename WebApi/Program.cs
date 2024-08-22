@@ -1,6 +1,6 @@
 using ApplicationCore.Entities;
 using ApplicationCore.Interfaces;
-using Infrastructures.Configurations;
+using Infrastructure.Configurations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -75,7 +75,7 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
 //Inject Services
-var infrastructureAssembly = Assembly.Load("Infrastructures");
+var infrastructureAssembly = Assembly.Load("Infrastructure");
 //var applicationCoreAssembly = Assembly.Load("ApplicationCore");
 Assembly assembly = Assembly.GetExecutingAssembly();
 builder.Services.Scan(scan => scan

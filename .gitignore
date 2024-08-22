@@ -1,8 +1,8 @@
 ApplicationCore/bin/
 ApplicationCore/obj/
-Infrastructures/bin/
-Infrastructures/obj/
-Infrastructures/Migrations/
+Infrastructure/bin/
+Infrastructure/obj/
+Infrastructure/Migrations/
 WebApi/bin/
 WebApi/obj/
 .vs/

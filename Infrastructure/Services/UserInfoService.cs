@@ -2,7 +2,7 @@
 using ApplicationCore.Interfaces;
 using ApplicationCore.Specifications;
 using AutoMapper;
-using Infrastructures.Configurations;
+using Infrastructure.Configurations;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -15,7 +15,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Infrastructures.Services
+namespace Infrastructure.Services
 {
     public class UserInfoService : ServiceBase<UserInfo>, IUserInfoService
     {

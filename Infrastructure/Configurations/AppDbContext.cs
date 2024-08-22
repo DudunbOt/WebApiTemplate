@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Infrastructures.Configurations
+namespace Infrastructure.Configurations
 {
     public class AppDbContext : DbContext
     {
