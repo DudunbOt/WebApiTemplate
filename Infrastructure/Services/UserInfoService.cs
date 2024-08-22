@@ -22,7 +22,7 @@ namespace Infrastructure.Services
 
         private readonly JwtSettings _jwtSettings;
 
-        public UserInfoService(AppDbContext context, IDistributedCache cache, IOptions<JwtSettings> jwtSettings) : base(context, cache)
+        public UserInfoService(AppDbContext context, IDistributedCache cache, IOptions<JwtSettings> jwtSettings, IOptions<AppConfig> appConfig) : base(context, cache, appConfig)
         {
             _jwtSettings = jwtSettings.Value;
         }

@@ -19,6 +19,9 @@ var jwtSettingObj = jwtSettings.Get<JwtSettings>();
 //make JWT Setting object to be "Injectable"
 builder.Services.Configure<JwtSettings>(jwtSettings);
 
+//Inject AppConfig
+builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
