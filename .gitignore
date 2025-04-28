@@ -1,0 +1,8 @@
+ApplicationCore/bin/
+ApplicationCore/obj/
+Infrastructure/bin/
+Infrastructure/obj/
+Infrastructure/Migrations/
+WebApi/bin/
+WebApi/obj/
+.vs/
