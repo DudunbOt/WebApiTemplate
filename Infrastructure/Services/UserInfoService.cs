@@ -1,4 +1,5 @@
 ﻿using ApplicationCore.Entities;
+using ApplicationCore.Exceptions;
 using ApplicationCore.Interfaces;
 using ApplicationCore.Specifications;
 using Infrastructure.Configurations;
@@ -28,10 +29,10 @@ namespace Infrastructure.Services
 
             UserInfo user = await this.GetOne(specification, token);
             if(user == null)
-                throw new Exception($"Cannot Find User with username: {username}");
+                throw new NotFoundException("UserInfo", username);
 
             if (!VerifyHashedPassword(user.Password, password))
-                throw new Exception($"Password is incorrect");
+                throw new UnauthorizedException("Invalid username or password");
 
             List<Claim> claims =
             [
@@ -61,7 +62,19 @@ namespace Infrastructure.Services
         public async Task<UserInfo> Register(UserInfo userInfo, CancellationToken token = default)
         {
             if(userInfo == null)
-                throw new ArgumentException("parameter userinfo can't be null");
+                throw new ArgumentNullException(nameof(userInfo));
+
+            if(string.IsNullOrEmpty(userInfo.UserName))
+                throw new ValidationException("UserName", "Username is required");
+
+            if(string.IsNullOrEmpty(userInfo.Password))
+                throw new ValidationException("Password", "Password is required");
+
+            // Check if username already exists
+            var existingUserSpec = new UserInfoSpecification(userInfo.UserName);
+            var existingUser = await this.GetOne(existingUserSpec, token);
+            if(existingUser != null)
+                throw new ConflictException($"Username '{userInfo.UserName}' is already taken");
 
             userInfo.Password = HashPassword(userInfo.Password);
 

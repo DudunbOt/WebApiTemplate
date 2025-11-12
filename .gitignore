@@ -6,3 +6,7 @@ Infrastructure/Migrations/
 WebApi/bin/
 WebApi/obj/
 .vs/
+
+# NLog files
+logs/
+*.log

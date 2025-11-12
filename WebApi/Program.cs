@@ -9,41 +9,54 @@ using Microsoft.EntityFrameworkCore.SqlServer.Design.Internal;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using NLog;
+using NLog.Web;
 using System.Reflection;
 using System.Text;
+using WebApi.Middleware;
 
-var builder = WebApplication.CreateBuilder(args);
+// Early init of NLog to allow startup and exception logging
+var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
+logger.Debug("Application starting...");
 
-//JWT Configuration
-var jwtSettings = builder.Configuration.GetSection("JWT");
-var jwtSettingObj = jwtSettings.Get<JwtSettings>();
-//make JWT Setting object to be "Injectable"
-builder.Services.Configure<JwtSettings>(jwtSettings);
-
-//Inject AppConfig
-builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
-
-builder.Services.AddAuthentication(options =>
+try
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettingObj?.Issuer,
-            ValidAudience = jwtSettingObj?.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettingObj?.Key))
-        };
-    });
+    var builder = WebApplication.CreateBuilder(args);
 
-//Api Versioning
-builder.Services.AddApiVersioning(options =>
+    // NLog: Setup NLog for Dependency injection
+    builder.Logging.ClearProviders();
+    builder.Host.UseNLog();
+
+    //JWT Configuration
+    var jwtSettings = builder.Configuration.GetSection("JWT");
+    var jwtSettingObj = jwtSettings.Get<JwtSettings>();
+    //make JWT Setting object to be "Injectable"
+    builder.Services.Configure<JwtSettings>(jwtSettings);
+
+    //Inject AppConfig
+    builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
+
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = jwtSettingObj?.Issuer,
+                ValidAudience = jwtSettingObj?.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettingObj?.Key))
+            };
+        });
+
+    //Api Versioning
+    builder.Services.AddApiVersioning(options =>
 {
     options.DefaultApiVersion = new ApiVersion(1, 0);
     options.AssumeDefaultVersionWhenUnspecified = true;
@@ -51,7 +64,7 @@ builder.Services.AddApiVersioning(options =>
 });
 
 //Setting Cors
-builder.Services.AddCors(options =>
+    builder.Services.AddCors(options =>
 {
     //Add more if specific policy is needed
     options.AddPolicy("AllowAllOrigins", builder =>
@@ -64,35 +77,35 @@ builder.Services.AddCors(options =>
 });
 
 //Setting DB
-builder.Services.AddDbContext<AppDbContext>(options =>
+    builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("default"));
 });
 
 //Configure Redis
-builder.Services.AddStackExchangeRedisCache(options =>
+    builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("redis");
 });
 
 //Setting AutoMapper
-builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
+    builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
 //Inject Services
 var infrastructureAssembly = Assembly.Load("Infrastructure");
 //var applicationCoreAssembly = Assembly.Load("ApplicationCore");
 Assembly assembly = Assembly.GetExecutingAssembly();
-builder.Services.Scan(scan => scan
+    builder.Services.Scan(scan => scan
     .FromAssemblies(infrastructureAssembly)
     .AddClasses(classes => classes.AssignableTo(typeof(IServiceBase<>)))
     .AsImplementedInterfaces()
     .WithTransientLifetime()
 );
 
-builder.Services.AddControllers();
+    builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
 {
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -122,30 +135,46 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-var app = builder.Build();
+    var app = builder.Build();
 
-//Ensure
-using (IServiceScope scope = app.Services.CreateScope())
+//Apply pending migrations automatically on startup
+    using (IServiceScope scope = app.Services.CreateScope())
 {
     IServiceProvider services = scope.ServiceProvider;
     AppDbContext context = services.GetRequiredService<AppDbContext>();
-    context.Database.EnsureCreated();
+
+    // Automatically apply pending migrations
+    context.Database.Migrate();
 }
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+    // Configure the HTTP request pipeline.
+// Global Exception Handler - must be early in the pipeline
+    app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
+
+    if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
 //Change to spesific CORS policy if needed
-app.UseCors("AllowAllOrigins");
+    app.UseCors("AllowAllOrigins");
 
-app.UseAuthentication();
+    app.UseAuthentication();
 
-app.UseAuthorization();
+    app.UseAuthorization();
 
-app.MapControllers();
+    app.MapControllers();
 
-app.Run();
+    app.Run();
+}
+catch (Exception ex)
+{
+    logger.Error(ex, "Application stopped because of exception");
+    throw;
+}
+finally
+{
+    LogManager.Shutdown();
+}
+

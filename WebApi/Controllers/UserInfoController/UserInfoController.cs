@@ -15,32 +15,18 @@ namespace WebApi.Controllers.UserInfoController
         [Route("login")]
         public async Task<IActionResult> Login([FromBody] UserInfoDTO userParam, CancellationToken token = default)
         {
-            try
-            {
-                var user = _mapper.Map<UserInfo>(userParam);
-                var result = await _service.Login(user.UserName, user.Password, token);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            var user = _mapper.Map<UserInfo>(userParam);
+            var result = await _service.Login(user.UserName, user.Password, token);
+            return Ok(result);
         }
 
         [HttpPost]
         [Route("register")]
         public async Task<IActionResult> Register([FromBody] UserInfoDTO userParam, CancellationToken token = default)
         {
-            try
-            {
-                var user = _mapper.Map<UserInfo>(userParam);
-                var result = await _service.Register(user, token);
-                return Ok(_mapper.Map<UserInfoDTO>(result));
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            var user = _mapper.Map<UserInfo>(userParam);
+            var result = await _service.Register(user, token);
+            return Ok(_mapper.Map<UserInfoDTO>(result));
         }
 
         [Authorize]
@@ -48,40 +34,26 @@ namespace WebApi.Controllers.UserInfoController
         [Route("{id}")]
         public async Task<IActionResult> GetUser(int id, CancellationToken token = default)
         {
-            try
-            {
-                var result = await _service.GetOne(id, token);
-                return Ok(_mapper.Map<UserInfoDTO>(result));
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            var result = await _service.GetOne(id, token);
+            return Ok(_mapper.Map<UserInfoDTO>(result));
         }
 
         [Authorize]
         [HttpGet]
         public async Task<IActionResult> GetUsers([FromQuery] Dictionary<string, string> filterParams, CancellationToken token = default)
         {
-            try
-            {
-                var userSpec = CreateFilter(filterParams, out int pageNumber, out int pageSize);
+            var userSpec = CreateFilter(filterParams, out int pageNumber, out int pageSize);
 
-                var pagination = await _service.GetCount(userSpec, pageNumber, pageSize, token);
-                var result = await _service.GetList(userSpec, pageNumber, pageSize, token);
+            var pagination = await _service.GetCount(userSpec, pageNumber, pageSize, token);
+            var result = await _service.GetList(userSpec, pageNumber, pageSize, token);
 
-                var response = new
-                {
-                    pageInfo = pagination,
-                    users = _mapper.Map<List<UserInfoDTO>>(result)
-                };
-                
-                return Ok(response);
-            }
-            catch(Exception ex)
+            var response = new
             {
-                return BadRequest(ex.Message);
-            }
+                pageInfo = pagination,
+                users = _mapper.Map<List<UserInfoDTO>>(result)
+            };
+
+            return Ok(response);
         }
 
         private UserInfoSpecification CreateFilter(Dictionary<string, string> filterParams, out int pageNumber, out int pageSize)

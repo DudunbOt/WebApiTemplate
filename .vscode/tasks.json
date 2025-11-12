@@ -1,0 +1,167 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/WebApi/WebApi.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "publish",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "publish",
+                "${workspaceFolder}/WebApi/WebApi.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "watch",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "watch",
+                "run",
+                "--project",
+                "${workspaceFolder}/WebApi/WebApi.csproj"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "clean",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "clean",
+                "${workspaceFolder}/WebApi/WebApi.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "restore",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "restore",
+                "${workspaceFolder}/WebApiTemplate.sln"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "ef: add migration",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "dotnet-ef",
+                "migrations",
+                "add",
+                "${input:migrationName}",
+                "--project",
+                "${workspaceFolder}/Infrastructure",
+                "--startup-project",
+                "${workspaceFolder}/WebApi",
+                "--context",
+                "AppDbContext",
+                "--output-dir",
+                "Data/Migrations"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "ef: update database",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "dotnet-ef",
+                "database",
+                "update",
+                "--project",
+                "${workspaceFolder}/Infrastructure",
+                "--startup-project",
+                "${workspaceFolder}/WebApi",
+                "--context",
+                "AppDbContext"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "ef: remove last migration",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "dotnet-ef",
+                "migrations",
+                "remove",
+                "--project",
+                "${workspaceFolder}/Infrastructure",
+                "--startup-project",
+                "${workspaceFolder}/WebApi",
+                "--context",
+                "AppDbContext",
+                "--force"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "ef: list migrations",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "dotnet-ef",
+                "migrations",
+                "list",
+                "--project",
+                "${workspaceFolder}/Infrastructure",
+                "--startup-project",
+                "${workspaceFolder}/WebApi",
+                "--context",
+                "AppDbContext"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "ef: generate SQL script",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "dotnet-ef",
+                "migrations",
+                "script",
+                "--project",
+                "${workspaceFolder}/Infrastructure",
+                "--startup-project",
+                "${workspaceFolder}/WebApi",
+                "--context",
+                "AppDbContext",
+                "--output",
+                "${workspaceFolder}/migration.sql",
+                "--idempotent"
+            ],
+            "problemMatcher": "$msCompile"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "migrationName",
+            "type": "promptString",
+            "description": "Enter migration name",
+            "default": "MyMigration"
+        }
+    ]
+}

@@ -1,4 +1,5 @@
 ﻿using ApplicationCore.Entities;
+using ApplicationCore.Exceptions;
 using ApplicationCore.Interfaces;
 using ApplicationCore.Specifications;
 using AutoMapper;
@@ -39,7 +40,7 @@ namespace Infrastructure.Services
             var entity = await _context.Set<T>().FindAsync(id);
             if (entity == null)
             {
-                throw new InvalidOperationException($"Entity of type {typeof(T)} with Id {id} not found");
+                throw new NotFoundException(typeof(T).Name, id);
             }
 
             var property = entity.GetType().GetProperty("DeletedDate");
@@ -179,7 +180,7 @@ namespace Infrastructure.Services
             var entity = await _context.Set<T>().FindAsync(id, token);
             if (entity == null)
             {
-                throw new InvalidOperationException($"Entity of type {typeof(T)} with Id {id} not found");
+                throw new NotFoundException(typeof(T).Name, id);
             }
 
             if (entity != null && _config.UseCache)
@@ -208,7 +209,7 @@ namespace Infrastructure.Services
                 var existingEntity = await _context.Set<T>().FindAsync(id);
                 if (existingEntity == null)
                 {
-                    throw new InvalidOperationException($"Entity of type {typeof(T)} with Id {id} not found");
+                    throw new NotFoundException(typeof(T).Name, id);
                 }
 
                 entity.UpdatedDate = DateTime.Now;
