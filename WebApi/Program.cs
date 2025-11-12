@@ -88,6 +88,17 @@ try
     options.Configuration = builder.Configuration.GetConnectionString("redis");
 });
 
+//Configure Health Checks
+    builder.Services.AddHealthChecks()
+    .AddSqlServer(
+        builder.Configuration.GetConnectionString("default")!,
+        name: "sqlserver",
+        tags: new[] { "db", "sql", "sqlserver" })
+    .AddRedis(
+        builder.Configuration.GetConnectionString("redis")!,
+        name: "redis",
+        tags: new[] { "cache", "redis" });
+
 //Setting AutoMapper
     builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
@@ -165,6 +176,46 @@ Assembly assembly = Assembly.GetExecutingAssembly();
     app.UseAuthorization();
 
     app.MapControllers();
+
+// Health Check Endpoints
+    app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                duration = e.Value.Duration.TotalMilliseconds,
+                exception = e.Value.Exception?.Message,
+                data = e.Value.Data
+            }),
+            totalDuration = report.TotalDuration.TotalMilliseconds
+        };
+        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        }));
+    }
+});
+
+// Simple liveness probe (no dependencies checked)
+    app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false // Don't run any checks, just return 200 OK if app is running
+});
+
+// Readiness probe (checks all dependencies)
+    app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("db") || check.Tags.Contains("cache")
+});
 
     app.Run();
 }

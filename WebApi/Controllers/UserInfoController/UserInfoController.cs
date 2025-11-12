@@ -45,30 +45,9 @@ namespace WebApi.Controllers.UserInfoController
             // Convert Request.Query to Dictionary for legacy specification filters
             var filterParams = Request.Query.ToDictionary(k => k.Key, k => k.Value.ToString());
 
-            // Debug: Log all query parameters
-            Console.WriteLine($"Query params count: {Request.Query.Count}");
-            foreach (var kvp in Request.Query)
-            {
-                Console.WriteLine($"  {kvp.Key} = {kvp.Value}");
-            }
-
             var userSpec = CreateFilter(filterParams, out int pageNumber, out int pageSize);
             var sortDescriptors = ParseSortDescriptors(filterParams);
             var filterDescriptors = ParseFilterDescriptors(); // No params - will use Request.Query directly
-
-            // Debug: Log the parsed filter descriptors
-            if (filterDescriptors != null)
-            {
-                Console.WriteLine($"Filter descriptors count: {filterDescriptors.Count}");
-                foreach (var fd in filterDescriptors)
-                {
-                    Console.WriteLine($"  Property: {fd.PropertyName}, Operator: {fd.Operator}, Value: {fd.Value}");
-                }
-            }
-            else
-            {
-                Console.WriteLine("No filter descriptors parsed");
-            }
 
             var pagination = await _service.GetCount(userSpec, pageNumber, pageSize, filterDescriptors, token);
             var result = await _service.GetList(userSpec, pageNumber, pageSize, sortDescriptors, filterDescriptors, token);
