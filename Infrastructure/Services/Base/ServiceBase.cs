@@ -1,5 +1,7 @@
 ﻿using ApplicationCore.Entities;
+using ApplicationCore.Entities.Base;
 using ApplicationCore.Exceptions;
+using ApplicationCore.Helpers;
 using ApplicationCore.Interfaces;
 using ApplicationCore.Specifications;
 using AutoMapper;
@@ -14,6 +16,8 @@ using System.Collections.Generic;
 using System.Data.Entity.Core.Objects.DataClasses;
 using System.Drawing.Printing;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -63,11 +67,14 @@ namespace Infrastructure.Services
             }
         }
 
-        public async Task<Pagination> GetCount(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, CancellationToken token = default)
+        public async Task<Pagination> GetCount(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, List<FilterDescriptor>? filterDescriptors = null, CancellationToken token = default)
         {
             IQueryable<T> query = _context.Set<T>();
 
-            var cacheKey = ENTITY_COUNT_KEY;
+            var uniqueSpec = specification != null ? JsonConvert.SerializeObject(specification).GetHashCode() : 0;
+            var filterKey = filterDescriptors != null ? JsonConvert.SerializeObject(filterDescriptors).GetHashCode() : 0;
+            var cacheKey = ENTITY_COUNT_KEY + $"_Filter{uniqueSpec}_DynFilter{filterKey}";
+
             if (_config.UseCache)
             {
                 var cacheData = await _cache.GetStringAsync(cacheKey, token);
@@ -84,6 +91,12 @@ namespace Infrastructure.Services
             var expression = specification.ToExpression();
             query = query.Where(expression);
 
+            // Apply dynamic filtering
+            var dynamicFilter = FilterBuilder<T>.BuildFilterExpression(filterDescriptors);
+            if (dynamicFilter != null)
+            {
+                query = query.Where(dynamicFilter);
+            }
 
             int totalItems = await query.CountAsync();
 
@@ -105,7 +118,7 @@ namespace Infrastructure.Services
             return pagination;
         }
 
-        public async Task<List<T>> GetList(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, CancellationToken token = default)
+        public async Task<List<T>> GetList(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, List<SortDescriptor>? sortDescriptors = null, List<FilterDescriptor>? filterDescriptors = null, CancellationToken token = default)
         {
             int skip = (pageNumber - 1) * pageSize;
             IQueryable<T> query = _context.Set<T>();
@@ -115,7 +128,9 @@ namespace Infrastructure.Services
                 specification = new DefaultSpecification<T>();
 
             var uniqueSpec = JsonConvert.SerializeObject(specification);
-            var cacheKey = ENTITY_KEY + $"_Page{pageNumber}_Size{pageSize}_Filter{uniqueSpec.GetHashCode()}";
+            var sortKey = sortDescriptors != null ? JsonConvert.SerializeObject(sortDescriptors).GetHashCode() : 0;
+            var filterKey = filterDescriptors != null ? JsonConvert.SerializeObject(filterDescriptors).GetHashCode() : 0;
+            var cacheKey = ENTITY_KEY + $"_Page{pageNumber}_Size{pageSize}_Filter{uniqueSpec.GetHashCode()}_Sort{sortKey}_DynFilter{filterKey}";
 
             if(_config.UseCache)
             {
@@ -125,9 +140,19 @@ namespace Infrastructure.Services
             }
 
             var expression = specification.ToExpression();
-            query = query.Where(expression)
-                .OrderByDescending(item => item.UpdatedDate)
-                .Skip(skip).Take(pageSize);
+            query = query.Where(expression);
+
+            // Apply dynamic filtering
+            var dynamicFilter = FilterBuilder<T>.BuildFilterExpression(filterDescriptors);
+            if (dynamicFilter != null)
+            {
+                query = query.Where(dynamicFilter);
+            }
+
+            // Apply sorting
+            query = ApplySorting(query, sortDescriptors);
+
+            query = query.Skip(skip).Take(pageSize);
 
             var entities = await query.ToListAsync(token);
 
@@ -236,6 +261,52 @@ namespace Infrastructure.Services
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(69)
             };
             await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(obj), cacheOptions, token);
+        }
+
+        private IQueryable<T> ApplySorting(IQueryable<T> query, List<SortDescriptor>? sortDescriptors)
+        {
+            if (sortDescriptors == null || !sortDescriptors.Any())
+            {
+                // Default sorting by UpdatedDate descending
+                if (typeof(EntityBase).IsAssignableFrom(typeof(T)))
+                {
+                    return query.OrderByDescending(e => ((EntityBase)(object)e).UpdatedDate);
+                }
+                return query;
+            }
+
+            IOrderedQueryable<T>? orderedQuery = null;
+
+            for (int i = 0; i < sortDescriptors.Count; i++)
+            {
+                var sort = sortDescriptors[i];
+                var propertyInfo = typeof(T).GetProperty(sort.PropertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+
+                if (propertyInfo == null)
+                {
+                    throw new ArgumentException($"Property '{sort.PropertyName}' does not exist on type '{typeof(T).Name}'");
+                }
+
+                var parameter = Expression.Parameter(typeof(T), "x");
+                var property = Expression.Property(parameter, propertyInfo);
+                var lambda = Expression.Lambda(property, parameter);
+
+                var methodName = i == 0
+                    ? (sort.Order == SortOrder.Ascending ? "OrderBy" : "OrderByDescending")
+                    : (sort.Order == SortOrder.Ascending ? "ThenBy" : "ThenByDescending");
+
+                var resultExpression = Expression.Call(
+                    typeof(Queryable),
+                    methodName,
+                    new Type[] { typeof(T), propertyInfo.PropertyType },
+                    i == 0 ? query.Expression : orderedQuery!.Expression,
+                    Expression.Quote(lambda)
+                );
+
+                orderedQuery = (IOrderedQueryable<T>)(i == 0 ? query.Provider.CreateQuery<T>(resultExpression) : orderedQuery!.Provider.CreateQuery<T>(resultExpression));
+            }
+
+            return orderedQuery ?? query;
         }
 
     }
