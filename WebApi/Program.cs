@@ -36,6 +36,9 @@ try
     //Inject AppConfig
     builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
 
+    //Inject EmailSettings
+    builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
     builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -112,6 +115,9 @@ Assembly assembly = Assembly.GetExecutingAssembly();
     .AsImplementedInterfaces()
     .WithTransientLifetime()
 );
+
+    //Register Background Services
+    builder.Services.AddHostedService<Infrastructure.BackgroundServices.EmailQueueProcessor>();
 
     builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

@@ -14,6 +14,7 @@ namespace Infrastructure.Configurations
 
         //Config Table here
         public DbSet<UserInfo> Users { get; set; }
+        public DbSet<EmailQueue> EmailQueue { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

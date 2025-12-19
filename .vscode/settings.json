@@ -5,7 +5,6 @@
     },
     "omnisharp.enableRoslynAnalyzers": true,
     "omnisharp.enableEditorConfigSupport": true,
-    "omnisharp.enableImportCompletion": true,
     "csharp.semanticHighlighting.enabled": true,
     "dotnet.defaultSolution": "WebApiTemplate.sln",
     "[csharp]": {
@@ -18,5 +17,6 @@
     },
     "files.associations": {
         "*.json": "jsonc"
-    }
+    },
+    "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true
 }
