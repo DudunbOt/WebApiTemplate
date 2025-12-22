@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.SqlServer.Design.Internal;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -103,7 +104,7 @@ try
         tags: new[] { "cache", "redis" });
 
 //Setting AutoMapper
-    builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
+    builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
 
 //Inject Services
 var infrastructureAssembly = Assembly.Load("Infrastructure");
