@@ -64,10 +64,10 @@ namespace Infrastructure.Services
             if(userInfo == null)
                 throw new ArgumentNullException(nameof(userInfo));
 
-            if(string.IsNullOrEmpty(userInfo.UserName))
+            if(string.IsNullOrWhiteSpace(userInfo.UserName))
                 throw new ValidationException("UserName", "Username is required");
 
-            if(string.IsNullOrEmpty(userInfo.Password))
+            if(string.IsNullOrWhiteSpace(userInfo.Password))
                 throw new ValidationException("Password", "Password is required");
 
             // Check if username already exists

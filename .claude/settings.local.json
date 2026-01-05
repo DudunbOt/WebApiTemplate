@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet add:*)"
+      "Bash(dotnet add:*)",
+      "Bash(dir:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(tree:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet build:*)",
+      "Bash(Select-String \"error\")",
+      "Bash(Select-Object -First 20)"
     ],
     "deny": [],
     "ask": []
