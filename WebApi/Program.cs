@@ -9,12 +9,17 @@ using Microsoft.EntityFrameworkCore.SqlServer.Design.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using NLog;
 using NLog.Web;
 using System.Reflection;
 using System.Text;
+using System.Collections.Generic;
 using WebApi.Middleware;
+
+// Configure Npgsql to handle DateTime as UTC (required for PostgreSQL timestamp with time zone)
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 
 // Early init of NLog to allow startup and exception logging
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
@@ -80,30 +85,73 @@ try
     });
 });
 
-//Setting DB
-    builder.Services.AddDbContext<AppDbContext>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("default"));
-});
+    //Setting DB - supports multiple providers via configuration
+    var dbProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "sqlserver";
+    var connectionString = builder.Configuration.GetConnectionString("default");
+    if(dbProvider.ToLower() == "postgres" || dbProvider.ToLower() == "postgresql")
+    {
+        logger.Info("Configuring PostgreSQL database provider");
+        connectionString = builder.Configuration.GetConnectionString("default_postgres");
+    }
 
-//Configure Redis
+    builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        switch (dbProvider.ToLower())
+        {
+            case "postgres":
+            case "postgresql":
+                options.UseNpgsql(connectionString, x => x
+                    .MigrationsAssembly("Infrastructure")
+                    .MigrationsHistoryTable("__ef_migrations_history_postgre_sql"))
+                    .UseSnakeCaseNamingConvention();
+                options.ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly,
+                    Infrastructure.Data.Migrations.PostgreSqlMigrationsAssembly>();
+                break;
+            case "sqlserver":
+            default:
+                options.UseSqlServer(connectionString, x => x
+                    .MigrationsAssembly("Infrastructure")
+                    .MigrationsHistoryTable("__EFMigrationsHistory_SqlServer"));
+                options.ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly,
+                    Infrastructure.Data.Migrations.SqlServerMigrationsAssembly>();
+                break;
+        }
+    });
+
+    //Configure Redis
     builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("redis");
 });
 
-//Configure Health Checks
-    builder.Services.AddHealthChecks()
-    .AddSqlServer(
-        builder.Configuration.GetConnectionString("default")!,
-        name: "sqlserver",
-        tags: new[] { "db", "sql", "sqlserver" })
-    .AddRedis(
+    //Configure Health Checks - dynamic based on database provider
+    var healthChecks = builder.Services.AddHealthChecks();
+
+    switch (dbProvider.ToLower())
+    {
+        case "postgres":
+        case "postgresql":
+            healthChecks.AddNpgSql(
+                connectionString!,
+                name: "postgresql",
+                tags: new[] { "db", "postgresql" });
+            break;
+        case "sqlserver":
+        default:
+            healthChecks.AddSqlServer(
+                connectionString!,
+                name: "sqlserver",
+                tags: new[] { "db", "sqlserver" });
+            break;
+    }
+
+    healthChecks.AddRedis(
         builder.Configuration.GetConnectionString("redis")!,
         name: "redis",
         tags: new[] { "cache", "redis" });
 
-//Setting AutoMapper
+
+    //Setting AutoMapper
     builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
 
 //Inject Services
@@ -123,35 +171,23 @@ Assembly assembly = Assembly.GetExecutingAssembly();
     builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen(c =>
-{
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    builder.Services.AddSwaggerGen(options =>
     {
-        Description = @"JWT Auth using Bearer Scheme.",
-        Name = "Authorization",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Scheme = "bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement()
-    {
+        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                },
-                Scheme = "bearer",
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-            },
-            new List<string>()
-        }
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = ParameterLocation.Header,
+            Description = "Enter JWT token"
+        });
+
+        options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+        });
     });
-});
 
     var app = builder.Build();
 
@@ -162,7 +198,7 @@ Assembly assembly = Assembly.GetExecutingAssembly();
     AppDbContext context = services.GetRequiredService<AppDbContext>();
 
     // Automatically apply pending migrations
-    context.Database.Migrate();
+    //context.Database.Migrate();
 }
 
     // Configure the HTTP request pipeline.

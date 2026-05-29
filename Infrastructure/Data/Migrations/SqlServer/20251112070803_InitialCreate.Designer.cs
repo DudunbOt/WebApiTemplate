@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Infrastructure.Data.Migrations
+namespace Infrastructure.Data.Migrations.SqlServer
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20251112070803_InitialCreate")]

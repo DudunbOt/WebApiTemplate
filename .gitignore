@@ -18,3 +18,4 @@ logs/
 /tests/WebApiTemplate.UnitTests/bin/Debug/net10.0
 /tests/WebApiTemplate.UnitTests/obj
 /tests/WebApiTemplate.ApiTests/bin/Debug/net10.0
+/.claude/settings.local.json

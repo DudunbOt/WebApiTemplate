@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Infrastructure.Data.Migrations
+namespace Infrastructure.Data.Migrations.SqlServer
 {
     /// <inheritdoc />
     public partial class AddEmailQueue : Migration
