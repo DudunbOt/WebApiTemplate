@@ -5,7 +5,7 @@ public class ErrorResponse
     public int StatusCode { get; set; }
     public string Message { get; set; }
     public string? Details { get; set; }
-    public Dictionary<string, string[]>? Errors { get; set; }
+    public Dictionary<string, List<string>>? Errors { get; set; }
     public string? TraceId { get; set; }
     public DateTime Timestamp { get; set; }
 

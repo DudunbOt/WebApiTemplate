@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Data.Entity.Core.Objects.DataClasses;
 using System.Drawing.Printing;
 using System.Linq;
@@ -23,51 +24,58 @@ using System.Threading.Tasks;
 
 namespace Infrastructure.Services
 {
-    public class ServiceBase<T> : IServiceBase<T> where T : EntityBase
+    public partial class ServiceBase<T> : IServiceBase<T> where T : EntityBase
     {
         protected AppDbContext _context;
         protected readonly IDistributedCache _cache;
         protected AppConfig _config;
-
+        protected readonly ICurrentUser _currentUser;
         private string ENTITY_COUNT_KEY = $"EntityCount_{typeof(T).Name}";
         private string ENTITY_KEY = $"Entity_{typeof(T).Name}";
+        protected Dictionary<string, List<string>> errors = new Dictionary<string, List<string>>();
 
-        public ServiceBase(AppDbContext context, IDistributedCache cache, IOptions<AppConfig> config)
+        protected bool ServiceState { get => errors.Count == 0; }
+
+        protected void AddError(string propertyName, string errorMessage)
+        {
+            if (!errors.ContainsKey(propertyName))
+            {
+                errors[propertyName] = new List<string>();
+            }
+            errors[propertyName].Add(errorMessage);
+        }
+        protected string Username => _currentUser.Username;
+
+        public ServiceBase(AppDbContext context, IDistributedCache cache, IOptions<AppConfig> config, ICurrentUser currentUser)
         {
             _context = context;
             _cache = cache;
             _config = config.Value;
+            _currentUser = currentUser;
         }
 
-        public async Task Delete(int id, CancellationToken token = default)
+        public virtual async Task Delete(int id, CancellationToken token = default)
         {
-            var entity = await _context.Set<T>().FindAsync(id);
+            var entity = await _context.Set<T>().FindAsync([id], token);
+
             if (entity == null)
-            {
                 throw new NotFoundException(typeof(T).Name, id);
-            }
 
-            var property = entity.GetType().GetProperty("DeletedDate");
-            if (property != null && property.PropertyType == typeof(DateTime?))
-            {
-                property.SetValue(entity, DateTime.Now);
-                _context.Entry(entity).State = EntityState.Modified;
-                await _context.SaveChangesAsync();
+            if (entity.DeletedDate.HasValue)
+                return;
 
-                if(_config.UseCache)
-                {
-                    // Clear cache for this entity
-                    string cacheKey = $"{ENTITY_KEY}_{id}";
-                    await _cache.RemoveAsync(cacheKey, token);
-                }
-            }
-            else
+            entity.DeletedDate = DateTime.Now;
+            entity.DeletedBy = Username;
+
+            await _context.SaveChangesAsync(token);
+
+            if (_config.UseCache)
             {
-                throw new InvalidOperationException($"Entity of type {typeof(T)} does not support soft delete.");
+                await _cache.RemoveAsync($"{ENTITY_KEY}_{id}", token);
             }
         }
 
-        public async Task<Pagination> GetCount(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, List<FilterDescriptor>? filterDescriptors = null, CancellationToken token = default)
+        public virtual async Task<Pagination> GetCount(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, List<FilterDescriptor>? filterDescriptors = null, CancellationToken token = default)
         {
             IQueryable<T> query = _context.Set<T>();
 
@@ -110,7 +118,7 @@ namespace Infrastructure.Services
                 TotalPages = totalPages
             };
 
-            if(totalItems > 0 && _config.UseCache)
+            if (totalItems > 0 && _config.UseCache)
             {
                 await WriteToCache(cacheKey, pagination, token);
             }
@@ -118,7 +126,7 @@ namespace Infrastructure.Services
             return pagination;
         }
 
-        public async Task<List<T>> GetList(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, List<SortDescriptor>? sortDescriptors = null, List<FilterDescriptor>? filterDescriptors = null, CancellationToken token = default)
+        public virtual async Task<List<T>> GetList(ISpecificationBase<T>? specification = null, int pageNumber = 1, int pageSize = 10, List<SortDescriptor>? sortDescriptors = null, List<FilterDescriptor>? filterDescriptors = null, CancellationToken token = default)
         {
             int skip = (pageNumber - 1) * pageSize;
             IQueryable<T> query = _context.Set<T>();
@@ -132,7 +140,7 @@ namespace Infrastructure.Services
             var filterKey = filterDescriptors != null ? JsonConvert.SerializeObject(filterDescriptors).GetHashCode() : 0;
             var cacheKey = ENTITY_KEY + $"_Page{pageNumber}_Size{pageSize}_Filter{uniqueSpec.GetHashCode()}_Sort{sortKey}_DynFilter{filterKey}";
 
-            if(_config.UseCache)
+            if (_config.UseCache)
             {
                 var cacheData = await _cache.GetStringAsync(cacheKey);
                 if (!string.IsNullOrEmpty(cacheData))
@@ -162,9 +170,9 @@ namespace Infrastructure.Services
             return entities ?? [];
         }
 
-        public async Task<T> GetOne(ISpecificationBase<T> specification, CancellationToken token = default)
+        public virtual async Task<T> GetOne(ISpecificationBase<T> specification, CancellationToken token = default)
         {
-            if(specification == null) throw new ArgumentNullException(nameof(specification));
+            if (specification == null) throw new ArgumentNullException(nameof(specification));
 
 
             var uniqueSpec = JsonConvert.SerializeObject(specification);
@@ -176,7 +184,7 @@ namespace Infrastructure.Services
                 if (!string.IsNullOrEmpty(cacheData))
                     return JsonConvert.DeserializeObject<T>(cacheData);
             }
-            
+
             var expression = specification.ToExpression();
 
             IQueryable<T> query = _context.Set<T>();
@@ -184,13 +192,13 @@ namespace Infrastructure.Services
 
             var entity = await query.FirstOrDefaultAsync(token);
 
-            if(entity != null && _config.UseCache) 
+            if (entity != null && _config.UseCache)
                 await WriteToCache(cacheKey, entity, token);
 
             return entity;
         }
 
-        public async Task<T> GetOne(int id, CancellationToken token = default)
+        public virtual async Task<T> GetOne(int id, CancellationToken token = default)
         {
             if (id <= 0) throw new ArgumentException("Parameter on Get One can't be less that 1");
 
@@ -214,7 +222,7 @@ namespace Infrastructure.Services
             return entity;
         }
 
-        public async Task<T> Upsert(object model, int id = 0, CancellationToken token = default)
+        public virtual async Task<T> Upsert(object model, int id = 0, CancellationToken token = default, bool commit = true)
         {
             T entity;
             if (model is not T)
@@ -225,8 +233,15 @@ namespace Infrastructure.Services
             entity = (T)model;
             if (id == 0)
             {
+                if (!await ValidateOnInsert(entity))
+                {
+                    throw new ValidationException(errors);
+                }
+
                 entity.CreatedDate = DateTime.Now;
                 entity.UpdatedDate = DateTime.Now;
+                entity.CreatedBy = Username;
+                entity.UpdatedBy = Username;
                 _context.Set<T>().Add(entity);
             }
             else
@@ -237,10 +252,32 @@ namespace Infrastructure.Services
                     throw new NotFoundException(typeof(T).Name, id);
                 }
 
-                entity.UpdatedDate = DateTime.Now;
+                if (!await ValidateOnUpdate(entity))
+                {
+                    throw new ValidationException(errors);
+                }
+
                 _context.Entry(existingEntity).CurrentValues.SetValues(entity);
 
-                if(_config.UseCache)
+                #region Ignore Created and Deleted fields on update
+                _context.Entry(existingEntity)
+                    .Property(x => x.CreatedDate)
+                    .IsModified = false;
+                _context.Entry(existingEntity)
+                    .Property(x => x.CreatedBy)
+                    .IsModified = false;
+                _context.Entry(existingEntity)
+                    .Property(x => x.DeletedBy)
+                    .IsModified = false;
+                _context.Entry(existingEntity)
+                    .Property(x => x.DeletedDate)
+                    .IsModified = false;
+                #endregion
+
+                existingEntity.UpdatedDate = DateTime.UtcNow;
+                existingEntity.UpdatedBy = Username;
+
+                if (_config.UseCache)
                 {
                     string cacheKey = $"Entity_{typeof(T).Name}_{id}";
                     await _cache.RemoveAsync(cacheKey, token);
@@ -249,12 +286,13 @@ namespace Infrastructure.Services
                 entity = existingEntity;
             }
 
-            await _context.SaveChangesAsync();
+            if (commit)
+                await _context.SaveChangesAsync(token);
 
             return entity;
         }
 
-        private async Task WriteToCache(string cacheKey, object obj, CancellationToken token = default)
+        protected virtual async Task WriteToCache(string cacheKey, object obj, CancellationToken token = default)
         {
             var cacheOptions = new DistributedCacheEntryOptions
             {
@@ -263,14 +301,14 @@ namespace Infrastructure.Services
             await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(obj), cacheOptions, token);
         }
 
-        private IQueryable<T> ApplySorting(IQueryable<T> query, List<SortDescriptor>? sortDescriptors)
+        protected virtual IQueryable<T> ApplySorting(IQueryable<T> query, List<SortDescriptor>? sortDescriptors)
         {
             if (sortDescriptors == null || !sortDescriptors.Any())
             {
-                // Default sorting by UpdatedDate descending
+                // Default sorting by CreatedDate descending
                 if (typeof(EntityBase).IsAssignableFrom(typeof(T)))
                 {
-                    return query.OrderByDescending(e => ((EntityBase)(object)e).UpdatedDate);
+                    return query.OrderByDescending(e => ((EntityBase)(object)e).CreatedDate);
                 }
                 return query;
             }
@@ -307,6 +345,23 @@ namespace Infrastructure.Services
             }
 
             return orderedQuery ?? query;
+        }
+
+        protected virtual async Task<bool> ValidateBase(T entity)
+        {
+            return ServiceState;
+        }
+        protected virtual async Task<bool> ValidateOnInsert(T entity)
+        {
+            await ValidateBase(entity);
+
+            return ServiceState;
+        }
+        protected virtual async Task<bool> ValidateOnUpdate(T entity)
+        {
+            await ValidateBase(entity);
+
+            return ServiceState;
         }
 
     }

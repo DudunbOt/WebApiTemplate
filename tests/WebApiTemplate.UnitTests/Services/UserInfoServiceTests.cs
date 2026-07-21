@@ -45,7 +45,7 @@ public class UserInfoServiceTests : ServiceTestBase
         // Create in-memory database context
         _context = CreateInMemoryDbContext();
 
-        _service = new UserInfoService(_context, _mockCache.Object, _mockJwtSettings.Object, _mockAppConfig.Object);
+        _service = new UserInfoService(_context, _mockCache.Object, _mockJwtSettings.Object, _mockAppConfig.Object, default);
     }
 
     #region Register Tests

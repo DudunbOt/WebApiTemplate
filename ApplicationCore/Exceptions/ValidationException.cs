@@ -2,28 +2,28 @@ namespace ApplicationCore.Exceptions;
 
 public class ValidationException : Exception
 {
-    public Dictionary<string, string[]> Errors { get; }
+    public Dictionary<string, List<string>> Errors { get; }
 
     public ValidationException() : base("One or more validation errors occurred.")
     {
-        Errors = new Dictionary<string, string[]>();
+        Errors = new Dictionary<string, List<string>>();
     }
 
     public ValidationException(string message) : base(message)
     {
-        Errors = new Dictionary<string, string[]>();
+        Errors = new Dictionary<string, List<string>>();
     }
 
-    public ValidationException(Dictionary<string, string[]> errors) : base("One or more validation errors occurred.")
+    public ValidationException(Dictionary<string, List<string>> errors) : base("One or more validation errors occurred.")
     {
         Errors = errors;
     }
 
     public ValidationException(string propertyName, string errorMessage) : base("One or more validation errors occurred.")
     {
-        Errors = new Dictionary<string, string[]>
+        Errors = new Dictionary<string, List<string>>
         {
-            { propertyName, new[] { errorMessage } }
+            { propertyName, new List<string> { errorMessage } }
         };
     }
 }

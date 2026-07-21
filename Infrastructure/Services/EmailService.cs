@@ -22,8 +22,9 @@ namespace Infrastructure.Services
             IDistributedCache cache,
             IOptions<AppConfig> appConfig,
             IOptions<EmailSettings> emailSettings,
-            ILogger<EmailService> logger)
-            : base(context, cache, appConfig)
+            ILogger<EmailService> logger,
+            ICurrentUser currentuser)
+            : base(context, cache, appConfig, currentuser)
         {
             _emailSettings = emailSettings.Value;
             _logger = logger;

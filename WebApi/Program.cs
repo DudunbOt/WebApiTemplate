@@ -72,7 +72,7 @@ try
     options.ReportApiVersions = true;
 });
 
-//Setting Cors
+    //Setting Cors
     builder.Services.AddCors(options =>
 {
     //Add more if specific policy is needed
@@ -81,14 +81,14 @@ try
         builder.AllowAnyHeader()
         .AllowAnyMethod()
         .AllowAnyOrigin();
-        
+
     });
 });
 
     //Setting DB - supports multiple providers via configuration
     var dbProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "sqlserver";
     var connectionString = builder.Configuration.GetConnectionString("default");
-    if(dbProvider.ToLower() == "postgres" || dbProvider.ToLower() == "postgresql")
+    if (dbProvider.ToLower() == "postgres" || dbProvider.ToLower() == "postgresql")
     {
         logger.Info("Configuring PostgreSQL database provider");
         connectionString = builder.Configuration.GetConnectionString("default_postgres");
@@ -154,22 +154,23 @@ try
     //Setting AutoMapper
     builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
 
-//Inject Services
-var infrastructureAssembly = Assembly.Load("Infrastructure");
-//var applicationCoreAssembly = Assembly.Load("ApplicationCore");
-Assembly assembly = Assembly.GetExecutingAssembly();
+    builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+    //Inject Services
+    var infrastructureAssembly = Assembly.Load("Infrastructure");
+    //var applicationCoreAssembly = Assembly.Load("ApplicationCore");
+    Assembly assembly = Assembly.GetExecutingAssembly();
     builder.Services.Scan(scan => scan
-    .FromAssemblies(infrastructureAssembly)
-    .AddClasses(classes => classes.AssignableTo(typeof(IServiceBase<>)))
-    .AsImplementedInterfaces()
-    .WithTransientLifetime()
-);
+        .FromAssemblies(infrastructureAssembly)
+        .AddClasses(classes => classes.AssignableTo(typeof(IServiceBase<>)))
+        .AsImplementedInterfaces()
+        .WithTransientLifetime()
+    );
 
     //Register Background Services
     builder.Services.AddHostedService<Infrastructure.BackgroundServices.EmailQueueProcessor>();
 
     builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+    // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>
     {
@@ -191,27 +192,27 @@ Assembly assembly = Assembly.GetExecutingAssembly();
 
     var app = builder.Build();
 
-//Apply pending migrations automatically on startup
+    //Apply pending migrations automatically on startup
     using (IServiceScope scope = app.Services.CreateScope())
-{
-    IServiceProvider services = scope.ServiceProvider;
-    AppDbContext context = services.GetRequiredService<AppDbContext>();
+    {
+        IServiceProvider services = scope.ServiceProvider;
+        AppDbContext context = services.GetRequiredService<AppDbContext>();
 
-    // Automatically apply pending migrations
-    //context.Database.Migrate();
-}
+        // Automatically apply pending migrations
+        //context.Database.Migrate();
+    }
 
     // Configure the HTTP request pipeline.
-// Global Exception Handler - must be early in the pipeline
+    // Global Exception Handler - must be early in the pipeline
     app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
     if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
 
-//Change to spesific CORS policy if needed
+    //Change to spesific CORS policy if needed
     app.UseCors("AllowAllOrigins");
 
     app.UseAuthentication();
@@ -220,45 +221,45 @@ Assembly assembly = Assembly.GetExecutingAssembly();
 
     app.MapControllers();
 
-// Health Check Endpoints
+    // Health Check Endpoints
     app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = _ => true,
-    ResponseWriter = async (context, report) =>
     {
-        context.Response.ContentType = "application/json";
-        var response = new
+        Predicate = _ => true,
+        ResponseWriter = async (context, report) =>
         {
-            status = report.Status.ToString(),
-            checks = report.Entries.Select(e => new
+            context.Response.ContentType = "application/json";
+            var response = new
             {
-                name = e.Key,
-                status = e.Value.Status.ToString(),
-                description = e.Value.Description,
-                duration = e.Value.Duration.TotalMilliseconds,
-                exception = e.Value.Exception?.Message,
-                data = e.Value.Data
-            }),
-            totalDuration = report.TotalDuration.TotalMilliseconds
-        };
-        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response, new System.Text.Json.JsonSerializerOptions
-        {
-            WriteIndented = true
-        }));
-    }
-});
+                status = report.Status.ToString(),
+                checks = report.Entries.Select(e => new
+                {
+                    name = e.Key,
+                    status = e.Value.Status.ToString(),
+                    description = e.Value.Description,
+                    duration = e.Value.Duration.TotalMilliseconds,
+                    exception = e.Value.Exception?.Message,
+                    data = e.Value.Data
+                }),
+                totalDuration = report.TotalDuration.TotalMilliseconds
+            };
+            await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
+        }
+    });
 
-// Simple liveness probe (no dependencies checked)
+    // Simple liveness probe (no dependencies checked)
     app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = _ => false // Don't run any checks, just return 200 OK if app is running
-});
+    {
+        Predicate = _ => false // Don't run any checks, just return 200 OK if app is running
+    });
 
-// Readiness probe (checks all dependencies)
+    // Readiness probe (checks all dependencies)
     app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("db") || check.Tags.Contains("cache")
-});
+    {
+        Predicate = check => check.Tags.Contains("db") || check.Tags.Contains("cache")
+    });
 
     app.Run();
 }

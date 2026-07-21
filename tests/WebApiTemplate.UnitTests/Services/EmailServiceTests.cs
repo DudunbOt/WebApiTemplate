@@ -50,7 +50,7 @@ public class EmailServiceTests : ServiceTestBase
         });
 
         _context = CreateInMemoryDbContext();
-        _service = new EmailService(_context, _mockCache.Object, _mockAppConfig.Object, _mockEmailSettings.Object, _mockLogger.Object);
+        _service = new EmailService(_context, _mockCache.Object, _mockAppConfig.Object, _mockEmailSettings.Object, _mockLogger.Object, default);
     }
 
     #region QueueEmailAsync Tests

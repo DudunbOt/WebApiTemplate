@@ -18,7 +18,7 @@ namespace Infrastructure.Services
 
         private readonly JwtSettings _jwtSettings;
 
-        public UserInfoService(AppDbContext context, IDistributedCache cache, IOptions<JwtSettings> jwtSettings, IOptions<AppConfig> appConfig) : base(context, cache, appConfig)
+        public UserInfoService(AppDbContext context, IDistributedCache cache, IOptions<JwtSettings> jwtSettings, IOptions<AppConfig> appConfig, ICurrentUser currentUser) : base(context, cache, appConfig, currentUser)
         {
             _jwtSettings = jwtSettings.Value;
         }
@@ -28,7 +28,7 @@ namespace Infrastructure.Services
             UserInfoSpecification specification = new UserInfoSpecification(username);
 
             UserInfo user = await this.GetOne(specification, token);
-            if(user == null)
+            if (user == null)
                 throw new NotFoundException("UserInfo", username);
 
             if (!VerifyHashedPassword(user.Password, password))
@@ -50,7 +50,7 @@ namespace Infrastructure.Services
 
             var token = new JwtSecurityToken(
                 issuer: _jwtSettings.Issuer,
-                audience:_jwtSettings.Audience,
+                audience: _jwtSettings.Audience,
                 claims: claims,
                 expires: DateTime.Now.AddMinutes(_jwtSettings.ExpiryInMinutes), // Token expiration time
                 signingCredentials: credentials
@@ -61,19 +61,19 @@ namespace Infrastructure.Services
 
         public async Task<UserInfo> Register(UserInfo userInfo, CancellationToken token = default)
         {
-            if(userInfo == null)
+            if (userInfo == null)
                 throw new ArgumentNullException(nameof(userInfo));
 
-            if(string.IsNullOrWhiteSpace(userInfo.UserName))
+            if (string.IsNullOrWhiteSpace(userInfo.UserName))
                 throw new ValidationException("UserName", "Username is required");
 
-            if(string.IsNullOrWhiteSpace(userInfo.Password))
+            if (string.IsNullOrWhiteSpace(userInfo.Password))
                 throw new ValidationException("Password", "Password is required");
 
             // Check if username already exists
             var existingUserSpec = new UserInfoSpecification(userInfo.UserName);
             var existingUser = await this.GetOne(existingUserSpec, token);
-            if(existingUser != null)
+            if (existingUser != null)
                 throw new ConflictException($"Username '{userInfo.UserName}' is already taken");
 
             userInfo.Password = HashPassword(userInfo.Password);
