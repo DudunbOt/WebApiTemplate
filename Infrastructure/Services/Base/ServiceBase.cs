@@ -222,15 +222,8 @@ namespace Infrastructure.Services
             return entity;
         }
 
-        public virtual async Task<T> Upsert(object model, int id = 0, CancellationToken token = default, bool commit = true)
+        public virtual async Task<T> Upsert(T entity, int id = 0, CancellationToken token = default, bool commit = true)
         {
-            T entity;
-            if (model is not T)
-            {
-                throw new ArgumentException($"Parameter model must be of type {typeof(T)}");
-            }
-
-            entity = (T)model;
             if (id == 0)
             {
                 if (!await ValidateOnInsert(entity))
