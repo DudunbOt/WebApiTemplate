@@ -10,8 +10,6 @@ namespace ApplicationCore.Interfaces
 {
     public partial interface IUserInfoService : IServiceBase<UserInfo>
     {
-        Task<UserInfo> Register(UserInfo userInfo, CancellationToken token = default);
-        Task<string> Login(string username, string password, CancellationToken token = default);
-        Task<UserInfo> ResetPassword(UserInfo userInfo, CancellationToken token = default);
+        
     }
 }

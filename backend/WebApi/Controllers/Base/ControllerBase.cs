@@ -156,5 +156,25 @@ namespace WebApi.Controllers
                 _ => throw new ArgumentException($"Unsupported filter operator: {operatorStr}")
             };
         }
+
+        /// <summary>
+        /// Parse include parameter from query string to include collection navigation properties.
+        /// Supports: ?include=SpendingDetails or ?include=SpendingDetails,OtherCollection
+        /// </summary>
+        protected List<string>? ParseIncludes(Dictionary<string, string>? filterParams = null)
+        {
+            var queryDict = filterParams != null && filterParams.Any()
+                ? filterParams
+                : Request.Query.ToDictionary(k => k.Key, k => k.Value.ToString());
+
+            if (!queryDict.TryGetValue("include", out var includeValue) || string.IsNullOrWhiteSpace(includeValue))
+                return null;
+
+            return includeValue
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrEmpty(x))
+                .ToList();
+        }
     }
 }

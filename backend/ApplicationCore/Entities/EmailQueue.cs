@@ -5,10 +5,6 @@ namespace ApplicationCore.Entities
 {
     public partial class EmailQueue : EntityBase
     {
-        [Key]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public int Id { get; set; }
-
         [Required]
         [MaxLength(2000)]
         public string To { get; set; } = string.Empty; // JSON array of email addresses

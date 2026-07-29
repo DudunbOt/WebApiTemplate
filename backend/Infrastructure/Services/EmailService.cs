@@ -95,7 +95,7 @@ namespace Infrastructure.Services
                 new SortDescriptor("ScheduledAt", SortOrder.Ascending)
             };
 
-            return await GetList(null, 1, batchSize, sortDescriptors, filterDescriptors, cancellationToken);
+            return await GetList(null, 1, batchSize, sortDescriptors, filterDescriptors, default, cancellationToken);
         }
 
         public async Task UpdateEmailStatusAsync(EmailQueue emailQueue, CancellationToken cancellationToken = default)
@@ -113,7 +113,7 @@ namespace Infrastructure.Services
                 new FilterDescriptor("NextRetryAt", FilterOperator.LessThanOrEqual, DateTime.Now)
             };
 
-            var failedEmails = await GetList(null, 1, 100, null, filterDescriptors, cancellationToken);
+            var failedEmails = await GetList(null, 1, 100, null, filterDescriptors, default, cancellationToken);
 
             foreach (var email in failedEmails)
             {
