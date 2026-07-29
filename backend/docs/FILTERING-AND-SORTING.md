@@ -105,6 +105,125 @@ GET /api/userinfo?userNameContains=john&sortBy=CreatedDate&sortOrder=desc
 GET /api/userinfo?userNameContains=john&filter[Id][op]=gte&filter[Id][value]=5&sortBy=CreatedDate&sortOrder=desc
 ```
 
+## Including Related Data (Eager Loading)
+
+The template supports eager loading of navigation properties through the `include` query parameter.
+
+### Default Behavior
+
+**Reference navigation properties** (foreign key relationships) are automatically included in queries. You don't need to do anything to get them.
+
+**Collection navigation properties** (one-to-many relationships) are **not** included by default to avoid performance issues. You must explicitly request them.
+
+### Basic Usage
+
+Include a single collection:
+
+```http
+GET /api/userinfo?include=Orders
+```
+
+Include multiple collections:
+
+```http
+GET /api/userinfo?include=Orders,Addresses,EmailQueue
+```
+
+### Combined with Other Features
+
+Include works seamlessly with filtering, sorting, and pagination:
+
+```http
+# Include with pagination
+GET /api/userinfo?pageNumber=1&pageSize=10&include=Orders
+
+# Include with sorting
+GET /api/userinfo?sortBy=UserName&sortOrder=asc&include=Orders
+
+# Include with filtering
+GET /api/userinfo?filter[UserName][op]=contains&filter[UserName][value]=john&include=Orders
+
+# All combined
+GET /api/userinfo?filter[UserName][op]=contains&filter[UserName][value]=john&sortBy=CreatedDate&sortOrder=desc&pageNumber=1&pageSize=10&include=Orders,Addresses
+```
+
+### Case-Insensitive Property Names
+
+Property names are matched case-insensitively:
+
+```http
+# All of these work
+GET /api/userinfo?include=Orders
+GET /api/userinfo?include=orders
+GET /api/userinfo?include=ORDERS
+```
+
+### Implementation for New Entities
+
+#### 1. Parse Includes in Your Controller
+
+```csharp
+[Authorize]
+[HttpGet]
+public async Task<IActionResult> GetProducts([FromQuery] Dictionary<string, string> filterParams, CancellationToken token = default)
+{
+    var spec = new DefaultSpecification<Product>();
+    var sortDescriptors = ParseSortDescriptors(filterParams);
+    var filterDescriptors = ParseFilterDescriptors(filterParams);
+    var includes = ParseIncludes(filterParams);  // Parse the include parameter
+
+    InitFilter(filterParams, out int pageNumber, out int pageSize);
+
+    var pagination = await _service.GetCount(spec, pageNumber, pageSize, token);
+    var result = await _service.GetList(spec, pageNumber, pageSize, sortDescriptors, filterDescriptors, includes, token);
+
+    return Ok(new
+    {
+        pageInfo = pagination,
+        products = _mapper.Map<List<ProductDTO>>(result)
+    });
+}
+```
+
+#### 2. For Single Entity Retrieval
+
+```csharp
+[HttpGet("{id}")]
+public async Task<IActionResult> GetProduct(int id, [FromQuery] Dictionary<string, string> filterParams, CancellationToken token = default)
+{
+    var includes = ParseIncludes(filterParams);
+    var result = await _service.GetOne(id, token, includes);
+
+    return Ok(_mapper.Map<ProductDTO>(result));
+}
+```
+
+### How It Works Under the Hood
+
+The `ServiceBase.ApplyIncludes` method:
+
+1. **Auto-includes all reference navigations** - Foreign key relationships are always loaded
+2. **Optionally includes collections** - Only when explicitly specified via `include` parameter
+3. **Uses EF Core metadata** - Navigation properties are discovered dynamically
+4. **Validates property names** - Only valid navigation properties are included
+
+### Caching
+
+Include configurations are factored into cache keys. Different include combinations are cached separately:
+
+```http
+# These are cached separately
+GET /api/userinfo?include=Orders
+GET /api/userinfo?include=Orders,Addresses
+GET /api/userinfo  # No includes
+```
+
+### Performance Considerations
+
+- **Be selective** - Only include collections you actually need
+- **Avoid N+1** - Using `include` prevents N+1 query problems for related data
+- **Watch payload size** - Including large collections increases response size
+
 ## Pagination
 
 Works with both filtering and sorting:
@@ -457,9 +576,10 @@ GET /api/products?$filter=Price ge 100 and Price le 500&$orderby=Name desc
 
 ✅ **Dynamic Filtering** - 13 operators (eq, ne, gt, gte, lt, lte, contains, startswith, endswith, in, notin, isnull, isnotnull)
 ✅ **Sorting** - Sort by any property, multiple fields supported
+✅ **Including Related Data** - Eager load collections via `?include=Collection1,Collection2`
 ✅ **Specification Pattern** - Still available for complex business logic
 ✅ **Pagination** - Works seamlessly with sorting and filtering
-✅ **Caching** - Results cached including sort and filter configuration
+✅ **Caching** - Results cached including sort, filter, and include configuration
 ✅ **Type-Safe** - Property and operator validation at runtime
 ✅ **Generic** - Works for all entities automatically
 ✅ **Backward Compatible** - Existing specifications continue to work
@@ -468,3 +588,4 @@ GET /api/products?$filter=Price ge 100 and Price le 500&$orderby=Name desc
 **Default Behavior:**
 - No sorting? Defaults to `UpdatedDate` descending (newest first)
 - No filtering? Returns all non-deleted records (via DefaultSpecification)
+- No includes? Reference navigations auto-loaded, collections excluded

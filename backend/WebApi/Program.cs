@@ -1,7 +1,12 @@
 using ApplicationCore.Entities;
 using ApplicationCore.Interfaces;
+using ApplicationCore.Interfaces.Base;
 using Asp.Versioning;
+using Hangfire;
+using Hangfire.PostgreSql;
+using Hangfire.SqlServer;
 using Infrastructure.Configurations;
+using Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +20,7 @@ using NLog.Web;
 using System.Reflection;
 using System.Text;
 using System.Collections.Generic;
+using WebApi.Filters;
 using WebApi.Middleware;
 
 // Configure Npgsql to handle DateTime as UTC (required for PostgreSQL timestamp with time zone)
@@ -44,6 +50,9 @@ try
 
     //Inject EmailSettings
     builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
+    //Inject HangfireSettings
+    builder.Services.Configure<HangfireSettings>(builder.Configuration.GetSection("Hangfire"));
 
     builder.Services.AddAuthentication(options =>
     {
@@ -155,19 +164,49 @@ try
     builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
 
     builder.Services.AddScoped<ICurrentUser, CurrentUser>();
-    //Inject Services
+    //Inject Services and Hangfire Jobs
     var infrastructureAssembly = Assembly.Load("Infrastructure");
-    //var applicationCoreAssembly = Assembly.Load("ApplicationCore");
-    Assembly assembly = Assembly.GetExecutingAssembly();
     builder.Services.Scan(scan => scan
         .FromAssemblies(infrastructureAssembly)
+        // Register services implementing IServiceBase<>
         .AddClasses(classes => classes.AssignableTo(typeof(IServiceBase<>)))
         .AsImplementedInterfaces()
         .WithTransientLifetime()
+        // Register Hangfire jobs implementing IHangfireJob
+        .FromAssemblies(infrastructureAssembly)
+        .AddClasses(classes => classes.AssignableTo(typeof(IHangfireJob)))
+        .AsSelf()
+        .WithScopedLifetime()
     );
 
-    //Register Background Services
-    builder.Services.AddHostedService<Infrastructure.BackgroundServices.EmailQueueProcessor>();
+    //Configure Hangfire
+    builder.Services.AddHangfire(config =>
+    {
+        config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+              .UseSimpleAssemblyNameTypeSerializer()
+              .UseRecommendedSerializerSettings();
+
+        switch (dbProvider.ToLower())
+        {
+            case "postgres":
+            case "postgresql":
+                config.UsePostgreSqlStorage(options =>
+                    options.UseNpgsqlConnection(connectionString));
+                break;
+            case "sqlserver":
+            default:
+                config.UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+                {
+                    CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+                    SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+                    QueuePollInterval = TimeSpan.Zero,
+                    UseRecommendedIsolationLevel = true,
+                    DisableGlobalLocks = true
+                });
+                break;
+        }
+    });
+    builder.Services.AddHangfireServer();
 
     builder.Services.AddControllers();
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -211,6 +250,17 @@ try
         app.UseSwagger();
         app.UseSwaggerUI();
     }
+
+    // Hangfire Dashboard - available at /hangfire
+    // Requires Basic Auth login (credentials from appsettings or environment variables)
+    var hangfireSettings = app.Services.GetRequiredService<IOptions<HangfireSettings>>();
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new HangfireAuthorizationFilter(hangfireSettings)]
+    });
+
+    // Auto-register all recurring jobs from Infrastructure assembly
+    HangfireJobExtensions.RegisterRecurringJobs(infrastructureAssembly);
 
     //Change to spesific CORS policy if needed
     app.UseCors("AllowAllOrigins");
